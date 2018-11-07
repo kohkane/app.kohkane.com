@@ -1,0 +1,100 @@
+defaults: &defaults
+  docker:
+    - image: circleci/node
+
+version: 2
+jobs:
+  lint:
+    <<: *defaults
+    steps:
+      - checkout
+      - restore_cache:
+          name: Restore Yarn Package Cache
+          keys:
+            - yarn-packages-{{ checksum "yarn.lock" }}
+      - run:
+          name: Install Dependencies
+          command: yarn install
+      - save_cache:
+          name: Save Yarn Package Cache
+          key: yarn-packages-{{ checksum "yarn.lock" }}
+          paths:
+            - ~/.cache/yarn
+      - run:
+          name: Linting
+          command: yarn run lint
+  test:
+    <<: *defaults
+    steps:
+      - checkout
+      - restore_cache:
+          name: Restore Yarn Package Cache
+          keys:
+            - yarn-packages-{{ checksum "yarn.lock" }}
+      - run:
+          name: Install Dependencies
+          command: yarn install
+      - save_cache:
+          name: Save Yarn Package Cache
+          key: yarn-packages-{{ checksum "yarn.lock" }}
+          paths:
+            - ~/.cache/yarn
+      - run:
+          name: Testing
+          command: yarn run unit:test
+  deploy:
+    <<: *defaults
+    steps:
+      - checkout
+      - restore_cache:
+          name: Restore Yarn Package Cache
+          keys:
+            - yarn-packages-{{ checksum "yarn.lock" }}
+      - run:
+          name: Install Dependencies
+          command: yarn install
+      - save_cache:
+          name: Save Yarn Package Cache
+          key: yarn-packages-{{ checksum "yarn.lock" }}
+          paths:
+            - ~/.cache/yarn
+      - run:
+          name: Installing AWS & packages
+          command: |
+            sudo apt-get update && sudo apt-get install -y awscli
+            aws --version
+      - run:
+          name: Building
+          command: |
+            yarn run build
+      - run:
+          name: Deploy to S3
+          command: |
+            if [[ "${CIRCLE_BRANCH}" == "master" || "${TIMED_BUILD}" == "true" ]]; then
+              aws s3 sync dist s3://${S3_PRODUCTION_BUCKET} --delete --cache-control max-age=31536000 --acl public-read --exclude 'logs/*' --exclude '**/*.html'
+              aws s3 sync dist s3://${S3_PRODUCTION_BUCKET} --exclude "*" --include "**/*.html" --delete --cache-control max-age=0,no-store,no-cache,must-revalidate --acl public-read
+            elif [[ "$CIRCLE_BRANCH" =~ ^release\/[0-9]{12}$ ]]; then
+              aws s3 sync dist s3://${S3_STAGING_BUCKET} --delete --cache-control max-age=31536000 --acl public-read --exclude 'logs/*' --exclude '*.html'
+              aws s3 sync dist s3://${S3_STAGING_BUCKET} --exclude "*" --include "**/*.html" --delete --cache-control max-age=0,no-store,no-cache,must-revalidate --acl public-read
+            fi
+
+workflows:
+  version: 2
+  lint-and-test:
+    jobs:
+      - lint:
+          filters:
+            branches:
+              ignore: master
+      - test:
+          filters:
+            branches:
+              ignore: master
+  deploy:
+    jobs:
+      - deploy:
+          filters:
+            branches:
+              only:
+                - /release\/[0-9]{12}/
+                - master
