@@ -2,8 +2,8 @@ import Vue from 'vue';
 import App from './App.vue';
 import router from './router';
 import store from './store';
+import './helpers';
 import './registerServiceWorker';
-import Axios from 'axios';
 
 Vue.config.productionTip = false;
 const environment = window.location.host === 'app.kohkane.com' ?
@@ -16,8 +16,6 @@ const baseUrls = {
   development: 'http://0.0.0.0:3000',
 };
 
-Axios.defaults.baseURL = baseUrls[environment];
-Vue.prototype.$http = Axios;
 
 new Vue({
   router,
@@ -26,5 +24,5 @@ new Vue({
   mounted() {
     // Fix blank screen in Electron builds
     this.$router.push('/');
-  }
+  },
 }).$mount('#app');
